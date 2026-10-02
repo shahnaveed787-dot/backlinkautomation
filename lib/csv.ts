@@ -81,6 +81,26 @@ export function csvEscape(v: string | number): string {
   return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
 
+/** Parse an XLSX/XLS file buffer into rows (first sheet only). */
+export async function parseSpreadsheet(buf: ArrayBuffer): Promise<string[][]> {
+  const XLSX = await import("xlsx");
+  const wb = XLSX.read(buf, { type: "array" });
+  const sheet = wb.Sheets[wb.SheetNames[0]];
+  if (!sheet) return [];
+  const rows = XLSX.utils.sheet_to_json<unknown[]>(sheet, { header: 1, defval: "" }) as unknown[][];
+  return rows
+    .map((r) => r.map((c) => String(c ?? "")))
+    .filter((r) => r.some((cell) => cell.trim() !== ""));
+}
+
+/** Read an uploaded file (CSV or XLSX/XLS) into rows. */
+export async function readUploadRows(file: File): Promise<string[][]> {
+  if (/\.xlsx?$/i.test(file.name)) {
+    return parseSpreadsheet(await file.arrayBuffer());
+  }
+  return parseCsv(await file.text());
+}
+
 /**
  * Validate + normalize a site URL. Accepts full URLs (https://example.com)
  * or bare domains (example.com → https://example.com).
