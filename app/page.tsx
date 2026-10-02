@@ -6,7 +6,6 @@ import type { AnchorKind, SourceSite, TargetPage, Task } from "@/lib/types";
 import { parseCsv, rowsToObjects, toCsv, normalizeUrl } from "@/lib/csv";
 import { store, todayKey, uid } from "@/lib/storage";
 import { countAnchorKinds, findOverusedAnchors, nextAnchorKind } from "@/lib/anchors";
-import { normalizeSourceType } from "@/lib/templates";
 
 const DAILY_LIMIT = 10;
 
@@ -59,20 +58,25 @@ export default function Home() {
     if (!f) return;
     try {
       const text = await f.text();
-      const objs = rowsToObjects(parseCsv(text));
+      const rows = parseCsv(text);
+      if (rows.length === 0) throw new Error("CSV is empty.");
+      // Only the first column (URL) is read; all other columns are ignored.
+      // Detect a header row: first cell looks like a label, not a URL.
+      const firstCell = (rows[0]?.[0] ?? "").trim().toLowerCase().replace(/[\s_-]+/g, "");
+      const hasHeader = ["sourcesite", "sourcesites", "site", "sites", "url", "urls", "source", "sources", "website", "websites", "domain", "domains", "link", "links"].includes(firstCell);
+      const dataRows = hasHeader ? rows.slice(1) : rows;
       const parsed: SourceSite[] = [];
       let skipped = 0;
-      for (const o of objs) {
-        const raw = o["sourcesite"] || o["site"] || o["url"] || "";
-        const site = normalizeUrl(raw);
+      for (const r of dataRows) {
+        const site = normalizeUrl(r[0] ?? "");
         if (!site) {
           skipped++;
           continue;
         }
-        parsed.push({ id: uid(), site, type: normalizeSourceType(o["sourcetype"] || o["type"] || "other") });
+        parsed.push({ id: uid(), site, type: "other" });
       }
       if (parsed.length === 0)
-        throw new Error("No valid rows. 'Source Site' must be a valid site URL (e.g. https://example-forum.com).");
+        throw new Error("No valid rows. Put one site URL per row (e.g. https://example-forum.com).");
       setSources(parsed);
       store.setSources(parsed);
       setError(null);
@@ -268,7 +272,7 @@ export default function Home() {
         <section className="grid md:grid-cols-2 gap-4 mb-6">
           <div className="rounded-xl border border-slate-200 bg-white p-4">
             <h2 className="font-semibold mb-1">1. Source sites CSV</h2>
-            <p className="text-xs text-slate-500 mb-3">Headers: <code>Source Site, Source Type</code> (forum / profile / article). Source Site must be a valid URL.</p>
+            <p className="text-xs text-slate-500 mb-3">One site URL per row. Only the URL is read — other columns are ignored.</p>
             <div className="flex items-center gap-3">
               <button onClick={() => sourcesFile.current?.click()} className="text-sm px-3 py-2 rounded-lg bg-slate-900 text-white hover:bg-slate-700">
                 Upload CSV
