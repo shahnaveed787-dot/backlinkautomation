@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import TaskCard from "@/components/TaskCard";
 import type { AnchorKind, SourceSite, TargetPage, Task } from "@/lib/types";
-import { parseCsv, rowsToObjects, toCsv, normalizeUrl } from "@/lib/csv";
+import { parseCsv, rowsToObjects, toCsv, normalizeUrl, readUploadRows } from "@/lib/csv";
 import { store, todayKey, uid } from "@/lib/storage";
 import { countAnchorKinds, findOverusedAnchors, nextAnchorKind } from "@/lib/anchors";
 
@@ -57,9 +57,8 @@ export default function Home() {
     const f = e.target.files?.[0];
     if (!f) return;
     try {
-      const text = await f.text();
-      const rows = parseCsv(text);
-      if (rows.length === 0) throw new Error("CSV is empty.");
+      const rows = await readUploadRows(f);
+      if (rows.length === 0) throw new Error("File is empty.");
       // Only the first column (URL) is read; all other columns are ignored.
       // Detect a header row: first cell looks like a label, not a URL.
       const firstCell = (rows[0]?.[0] ?? "").trim().toLowerCase().replace(/[\s_-]+/g, "");
@@ -92,8 +91,8 @@ export default function Home() {
     const f = e.target.files?.[0];
     if (!f) return;
     try {
-      const text = await f.text();
-      const objs = rowsToObjects(parseCsv(text));
+      const rows = await readUploadRows(f);
+      const objs = rowsToObjects(rows);
       const parsed: TargetPage[] = [];
       let skipped = 0;
       for (const o of objs) {
@@ -272,14 +271,14 @@ export default function Home() {
         <section className="grid md:grid-cols-2 gap-4 mb-6">
           <div className="rounded-xl border border-slate-200 bg-white p-4">
             <h2 className="font-semibold mb-1">1. Source sites CSV</h2>
-            <p className="text-xs text-slate-500 mb-3">One site URL per row. Only the URL is read — other columns are ignored.</p>
+            <p className="text-xs text-slate-500 mb-3">Upload CSV or XLSX. One site URL per row. Only the URL is read — other columns are ignored.</p>
             <div className="flex items-center gap-3">
               <button onClick={() => sourcesFile.current?.click()} className="text-sm px-3 py-2 rounded-lg bg-slate-900 text-white hover:bg-slate-700">
                 Upload CSV
               </button>
               <span className="text-sm text-slate-600">{sources.length} sources loaded</span>
             </div>
-            <input ref={sourcesFile} type="file" accept=".csv,text/csv" className="hidden" onChange={handleSourcesFile} />
+            <input ref={sourcesFile} type="file" accept=".csv,.xlsx,.xls,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" className="hidden" onChange={handleSourcesFile} />
           </div>
           <div className="rounded-xl border border-slate-200 bg-white p-4">
             <h2 className="font-semibold mb-1">2. Your pages CSV</h2>
@@ -290,7 +289,7 @@ export default function Home() {
               </button>
               <span className="text-sm text-slate-600">{targets.length} pages loaded</span>
             </div>
-            <input ref={targetsFile} type="file" accept=".csv,text/csv" className="hidden" onChange={handleTargetsFile} />
+            <input ref={targetsFile} type="file" accept=".csv,.xlsx,.xls,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" className="hidden" onChange={handleTargetsFile} />
           </div>
         </section>
 
