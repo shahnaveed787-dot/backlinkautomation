@@ -16,6 +16,8 @@ Pending → Submitted → Live, and export the log as CSV.
 
 ## CSV formats
 
+Upload **CSV or XLSX** for both lists.
+
 **Source sites** — one site URL per row (a header row is optional; only the
 first column is read, everything else is ignored):
 ```csv
