@@ -16,14 +16,13 @@ Pending → Submitted → Live, and export the log as CSV.
 
 ## CSV formats
 
-**Source sites** (`Source Site, Source Type`):
+**Source sites** — one site URL per row (a header row is optional; only the
+first column is read, everything else is ignored):
 ```csv
-Source Site,Source Type
-https://example-forum.com,forum
-https://directory.example.com,profile
-https://blog.example.com,article
+https://example-forum.com
+https://directory.example.com
+example-blog.com
 ```
-Source Type accepts: `forum`, `profile`, `article` (anything else → generic post).
 
 **Your pages** (`Target URL, Anchor Text`):
 ```csv
