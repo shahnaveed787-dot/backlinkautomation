@@ -81,6 +81,28 @@ export function csvEscape(v: string | number): string {
   return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
 
+/**
+ * Validate + normalize a site URL. Accepts full URLs (https://example.com)
+ * or bare domains (example.com → https://example.com).
+ * Returns the normalized URL, or null if invalid.
+ */
+export function normalizeUrl(raw: string): string | null {
+  const t = (raw ?? "").trim();
+  if (!t) return null;
+  // Reject obvious non-URLs (spaces, no dot, etc.)
+  if (/\s/.test(t)) return null;
+  const withScheme = /^[a-z][a-z0-9+.-]*:\/\//i.test(t) ? t : `https://${t}`;
+  try {
+    const u = new URL(withScheme);
+    if (!/^(http|https):$/.test(u.protocol)) return null;
+    if (!u.hostname.includes(".")) return null;
+    if (/[^a-z0-9.:_-]/i.test(u.hostname)) return null;
+    return u.href.replace(/\/$/, "");
+  } catch {
+    return null;
+  }
+}
+
 export function toCsv(headers: string[], rows: (string | number)[][]): string {
   const lines = [headers.map(csvEscape).join(",")];
   for (const r of rows) lines.push(r.map(csvEscape).join(","));
