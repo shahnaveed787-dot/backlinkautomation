@@ -59,15 +59,24 @@ export default function Home() {
     try {
       const rows = await readUploadRows(f);
       if (rows.length === 0) throw new Error("File is empty.");
-      // Only the first column (URL) is read; all other columns are ignored.
-      // Detect a header row: first cell looks like a label, not a URL.
-      const firstCell = (rows[0]?.[0] ?? "").trim().toLowerCase().replace(/[\s_-]+/g, "");
-      const hasHeader = ["sourcesite", "sourcesites", "site", "sites", "url", "urls", "source", "sources", "website", "websites", "domain", "domains", "link", "links"].includes(firstCell);
-      const dataRows = hasHeader ? rows.slice(1) : rows;
+      // Find the URL column: prefer a "Nandla Links" header; otherwise first column.
+      const normH = (h: string) => h.trim().toLowerCase().replace(/[\s_-]+/g, "");
+      const headerRow = rows[0].map(normH);
+      let urlCol = 0;
+      let dataRows = rows;
+      const nandlaIdx = headerRow.findIndex((h) => h === "nandlalinks" || h.includes("nandla"));
+      if (nandlaIdx >= 0) {
+        urlCol = nandlaIdx;
+        dataRows = rows.slice(1);
+      } else {
+        // Generic header detection fallback
+        const generic = ["sourcesite", "sourcesites", "site", "sites", "url", "urls", "source", "sources", "website", "websites", "domain", "domains", "link", "links"];
+        if (generic.includes(headerRow[0] ?? "")) dataRows = rows.slice(1);
+      }
       const parsed: SourceSite[] = [];
       let skipped = 0;
       for (const r of dataRows) {
-        const site = normalizeUrl(r[0] ?? "");
+        const site = normalizeUrl(r[urlCol] ?? "");
         if (!site) {
           skipped++;
           continue;
@@ -271,7 +280,7 @@ export default function Home() {
         <section className="grid md:grid-cols-2 gap-4 mb-6">
           <div className="rounded-xl border border-slate-200 bg-white p-4">
             <h2 className="font-semibold mb-1">1. Source sites CSV</h2>
-            <p className="text-xs text-slate-500 mb-3">Upload CSV or XLSX. One site URL per row. Only the URL is read — other columns are ignored.</p>
+            <p className="text-xs text-slate-500 mb-3">Upload CSV or XLSX. Reads the “Nandla Links” column (or first column). Other columns like DA / Traffic / Spam Score are ignored.</p>
             <div className="flex items-center gap-3">
               <button onClick={() => sourcesFile.current?.click()} className="text-sm px-3 py-2 rounded-lg bg-slate-900 text-white hover:bg-slate-700">
                 Upload CSV
