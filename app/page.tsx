@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import TaskCard from "@/components/TaskCard";
 import type { AnchorKind, SourceSite, TargetPage, Task } from "@/lib/types";
-import { parseCsv, rowsToObjects, toCsv } from "@/lib/csv";
+import { parseCsv, rowsToObjects, toCsv, normalizeUrl } from "@/lib/csv";
 import { store, todayKey, uid } from "@/lib/storage";
 import { countAnchorKinds, findOverusedAnchors, nextAnchorKind } from "@/lib/anchors";
 import { normalizeSourceType } from "@/lib/templates";
@@ -24,6 +24,7 @@ export default function Home() {
   const [progress, setProgress] = useState<GenProgress | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilter] = useState<string>("all");
+  const [notice, setNotice] = useState<string | null>(null);
   const sourcesFile = useRef<HTMLInputElement>(null);
   const targetsFile = useRef<HTMLInputElement>(null);
 
@@ -59,19 +60,26 @@ export default function Home() {
     try {
       const text = await f.text();
       const objs = rowsToObjects(parseCsv(text));
-      const parsed: SourceSite[] = objs
-        .map((o) => ({
-          id: uid(),
-          site: o["sourcesite"] || o["site"] || o["url"] || "",
-          type: normalizeSourceType(o["sourcetype"] || o["type"] || "other"),
-        }))
-        .filter((s) => s.site);
-      if (parsed.length === 0) throw new Error("No valid rows. Need headers: Source Site, Source Type.");
+      const parsed: SourceSite[] = [];
+      let skipped = 0;
+      for (const o of objs) {
+        const raw = o["sourcesite"] || o["site"] || o["url"] || "";
+        const site = normalizeUrl(raw);
+        if (!site) {
+          skipped++;
+          continue;
+        }
+        parsed.push({ id: uid(), site, type: normalizeSourceType(o["sourcetype"] || o["type"] || "other") });
+      }
+      if (parsed.length === 0)
+        throw new Error("No valid rows. 'Source Site' must be a valid site URL (e.g. https://example-forum.com).");
       setSources(parsed);
       store.setSources(parsed);
       setError(null);
+      setNotice(skipped > 0 ? `${skipped} row${skipped === 1 ? "" : "s"} skipped — not valid URLs.` : null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not parse sources CSV.");
+      setNotice(null);
     }
     e.target.value = "";
   }
@@ -82,19 +90,30 @@ export default function Home() {
     try {
       const text = await f.text();
       const objs = rowsToObjects(parseCsv(text));
-      const parsed: TargetPage[] = objs
-        .map((o) => ({
+      const parsed: TargetPage[] = [];
+      let skipped = 0;
+      for (const o of objs) {
+        const raw = o["targeturl"] || o["url"] || o["link"] || "";
+        const url = normalizeUrl(raw);
+        if (!url) {
+          skipped++;
+          continue;
+        }
+        parsed.push({
           id: uid(),
-          url: o["targeturl"] || o["url"] || o["link"] || "",
+          url,
           anchor: o["anchortext"] || o["anchor"] || o["text"] || "",
-        }))
-        .filter((t) => t.url);
-      if (parsed.length === 0) throw new Error("No valid rows. Need headers: Target URL, Anchor Text.");
+        });
+      }
+      if (parsed.length === 0)
+        throw new Error("No valid rows. 'Target URL' must be a valid page URL (e.g. https://yoursite.com/page).");
       setTargets(parsed);
       store.setTargets(parsed);
       setError(null);
+      setNotice(skipped > 0 ? `${skipped} row${skipped === 1 ? "" : "s"} skipped — not valid URLs.` : null);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Could not parse targets CSV.");
+      setNotice(null);
     }
     e.target.value = "";
   }
@@ -234,6 +253,10 @@ export default function Home() {
           <div className="mb-4 rounded-lg border border-red-300 bg-red-50 px-4 py-3 text-sm text-red-800">{error}</div>
         )}
 
+        {notice && !error && (
+          <div className="mb-4 rounded-lg border border-sky-300 bg-sky-50 px-4 py-3 text-sm text-sky-800">{notice}</div>
+        )}
+
         {overused.length > 0 && (
           <div className="mb-4 rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
             <span className="font-semibold">Overused anchors:</span>{" "}
@@ -245,7 +268,7 @@ export default function Home() {
         <section className="grid md:grid-cols-2 gap-4 mb-6">
           <div className="rounded-xl border border-slate-200 bg-white p-4">
             <h2 className="font-semibold mb-1">1. Source sites CSV</h2>
-            <p className="text-xs text-slate-500 mb-3">Headers: <code>Source Site, Source Type</code> (forum / profile / article)</p>
+            <p className="text-xs text-slate-500 mb-3">Headers: <code>Source Site, Source Type</code> (forum / profile / article). Source Site must be a valid URL.</p>
             <div className="flex items-center gap-3">
               <button onClick={() => sourcesFile.current?.click()} className="text-sm px-3 py-2 rounded-lg bg-slate-900 text-white hover:bg-slate-700">
                 Upload CSV
@@ -256,7 +279,7 @@ export default function Home() {
           </div>
           <div className="rounded-xl border border-slate-200 bg-white p-4">
             <h2 className="font-semibold mb-1">2. Your pages CSV</h2>
-            <p className="text-xs text-slate-500 mb-3">Headers: <code>Target URL, Anchor Text</code></p>
+            <p className="text-xs text-slate-500 mb-3">Headers: <code>Target URL, Anchor Text</code>. Target URL must be a valid URL.</p>
             <div className="flex items-center gap-3">
               <button onClick={() => targetsFile.current?.click()} className="text-sm px-3 py-2 rounded-lg bg-slate-900 text-white hover:bg-slate-700">
                 Upload CSV
